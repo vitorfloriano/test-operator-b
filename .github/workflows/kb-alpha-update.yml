@@ -149,30 +149,44 @@ jobs:
     - name: Generate PR body with GitHub Models
       if: steps.version-check.outputs.update_needed == 'true'
       env:
-        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         MODEL_ID: openai/gpt-4o-mini
       run: |
-        # Build request JSON from raw text file
-        jq -Rn --rawfile prompt prompt.txt '{
-          "model": env.MODEL_ID,
-          "messages": [{"role":"user","content": $prompt}],
-          "max_tokens": 700,
-          "temperature": 0.2
-        }' > req.json
+        # Build request from prompt.txt
+        prompt=$(jq -Rs . < prompt.txt)
 
-        # Call Models API (note the backslashes and Bearer token)
         curl -sS "https://models.github.ai/inference/chat/completions" \
           -H "Content-Type: application/json" \
           -H "Authorization: Bearer $GITHUB_TOKEN" \
-          --data @req.json \
-          -o resp.json
+          -d '{
+            "model": "'"$MODEL_ID"'",
+            "messages": [{"role":"user","content": '"$prompt"'}],
+            "max_tokens": 700,
+            "temperature": 0.2
+          }' > resp.json
 
-        # Extract content
         body=$(jq -r '.choices[0].message.content // empty' resp.json)
         if [ -z "$body" ]; then
           echo "Model returned empty body; using fallback."
           body="Automated Kubebuilder update from v${{ steps.current-version.outputs.current_version }} to v${{ steps.latest-version.outputs.latest_version }}. Please review the diff."
         fi
+
+        # --- Normalize output ---
+
+        # 1) Drop opening fence like ``` or ```markdown if present (only first line)
+        if printf '%s\n' "$body" | head -n1 | grep -Eq '^```'; then
+          body="$(printf '%s\n' "$body" | sed '1d')"
+        fi
+        # 2) Drop trailing closing fence ``` if present (only last line)
+        if printf '%s\n' "$body" | tail -n1 | grep -Eq '^```$'; then
+          body="$(printf '%s\n' "$body" | sed '$d')"
+        fi
+
+        # 3) If EVERY non-empty line starts with exactly 4 spaces, strip one level
+        if printf '%s\n' "$body" | awk 'NF{ if($0 !~ /^    /) exit 1 }'; then
+          body="$(printf '%s\n' "$body" | sed 's/^    //')"
+        fi
+
         printf "%s\n" "$body" > PR_BODY.md
 
     # ---------- /AI-generated PR body ----------
