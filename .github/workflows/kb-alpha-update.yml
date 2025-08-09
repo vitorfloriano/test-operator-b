@@ -201,6 +201,7 @@ jobs:
           Automated update via workflow.
         title: "chore: update Kubebuilder scaffold"
         body-path: PR_BODY.md
+        draft: true
 
     - name: Log PR result
       if: steps.version-check.outputs.update_needed == 'true' && steps.changes.outputs.has_changes == 'true'
