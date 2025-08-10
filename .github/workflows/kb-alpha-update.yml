@@ -114,37 +114,40 @@ jobs:
       if: steps.version-check.outputs.update_needed == 'true'
       run: |
         git diff --unified=0 --no-color > update.patch || true
-        head -c 200000 update.patch > update.patch.trim
+        MAX_CHARS=28000
+        size=$(wc -c < update.patch)
+        if [ "$size" -gt "$MAX_CHARS" ]; then
+          head -c "$MAX_CHARS" update.patch > update.patch.trim
+        else
+          cp update.patch update.patch.trim
+        fi
 
     - name: Prepare prompt for PR body
       if: steps.version-check.outputs.update_needed == 'true'
       run: |
         cat > prompt.txt <<'EOF'
-        You are a release-notes assistant.
-        Task: Read the unified diff and write a concise PR description in Markdown.
+        You are an assistant generating a professional pull request description for a Kubebuilder scaffold update.
 
-        Context:
-        - Change type: Kubebuilder alpha update
-        - From: ${FROM_VERSION}
-        - To:   ${TO_VERSION}
+        ## Context
+        - This update was performed by the "Alpha Update" GitHub Actions workflow.
+        - The goal is to update the Kubebuilder CLI scaffold from one version to another while preserving custom code.
+        - The diff below contains all changes introduced by the update.
 
-        Requirements:
-        - 200–300 words max.
-        - A short intro line (what & why).
-        - Bulleted highlights of notable changes (group by folder when possible).
-        - If conflict markers appear in files (e.g., <<<<<<<), add a "Conflicts" note.
-        - Add a checklist:
-          - [ ] Build passes
-          - [ ] Unit tests pass
-          - [ ] E2E (if applicable)
+        ## Requirements for the output:
+        1. Start with a short, clear summary sentence of what changed (max 1 line).
+        2. Follow with bullet points describing the key changes, grouped logically.
+        3. If the diff includes conflict markers or unresolved code, note that reviewers must resolve them before merge.
+        4. Avoid generic filler phrases (e.g., "minor changes").
+        5. Do **not** wrap the output in code blocks or triple backticks.
+        6. Use pure GitHub-Flavored Markdown (GFM).
 
-        Do NOT include the raw diff. Output Markdown only.
-        ---- DIFF BELOW ----
+        ## Diff:
+        <START OF DIFF>
         EOF
 
-        sed -i "s|\${FROM_VERSION}|v${{ steps.current-version.outputs.current_version }}|g" prompt.txt
-        sed -i "s|\${TO_VERSION}|v${{ steps.latest-version.outputs.latest_version }}|g" prompt.txt
+        # Append the trimmed diff and close marker
         cat update.patch.trim >> prompt.txt
+        printf "\n<END OF DIFF>\n" >> prompt.txt
 
     - name: Generate PR body with GitHub Models
       if: steps.version-check.outputs.update_needed == 'true'
@@ -152,37 +155,44 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         MODEL_ID: openai/gpt-4o-mini
       run: |
-        # Build request from prompt.txt
         prompt=$(jq -Rs . < prompt.txt)
 
-        curl -sS "https://models.github.ai/inference/chat/completions" \
-          -H "Content-Type: application/json" \
-          -H "Authorization: Bearer $GITHUB_TOKEN" \
-          -d '{
-            "model": "'"$MODEL_ID"'",
-            "messages": [{"role":"user","content": '"$prompt"'}],
-            "max_tokens": 700,
-            "temperature": 0.2
-          }' > resp.json
+        jq -n --argjson prompt "$prompt" --arg model "$MODEL_ID" '{
+          model: $model,
+          messages: [{role:"user", content: $prompt}],
+          max_tokens: 1200,
+          temperature: 0.2
+        }' > req.json
+
+        attempt=0
+        while :; do
+          status=$(curl -sS -w "%{http_code}" -o resp.json \
+            "https://models.github.ai/inference/chat/completions" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            --data @req.json)
+          if [ "$status" = "200" ]; then
+            break
+          elif [ "$status" = "429" ] && [ $attempt -lt 4 ]; then
+            sleep $(( 2 ** attempt + 1 ))
+            attempt=$((attempt+1))
+            continue
+          else
+            echo "Model API error: HTTP $status"
+            cat resp.json || true
+            # fall back to minimal body
+            echo "Automated Kubebuilder update. Please review the diff." > PR_BODY.md
+            exit 0
+          fi
+        done
 
         body=$(jq -r '.choices[0].message.content // empty' resp.json)
         if [ -z "$body" ]; then
-          echo "Model returned empty body; using fallback."
           body="Automated Kubebuilder update from v${{ steps.current-version.outputs.current_version }} to v${{ steps.latest-version.outputs.latest_version }}. Please review the diff."
         fi
 
-        # --- Normalize output ---
-
-        # 1) Drop opening fence like ``` or ```markdown if present (only first line)
-        if printf '%s\n' "$body" | head -n1 | grep -Eq '^```'; then
-          body="$(printf '%s\n' "$body" | sed '1d')"
-        fi
-        # 2) Drop trailing closing fence ``` if present (only last line)
-        if printf '%s\n' "$body" | tail -n1 | grep -Eq '^```$'; then
-          body="$(printf '%s\n' "$body" | sed '$d')"
-        fi
-
-        # 3) If EVERY non-empty line starts with exactly 4 spaces, strip one level
+        if printf '%s\n' "$body" | head -n1 | grep -Eq '^```'; then body="$(printf '%s\n' "$body" | sed '1d')"; fi
+        if printf '%s\n' "$body" | tail -n1 | grep -Eq '^```$'; then body="$(printf '%s\n' "$body" | sed '$d')"; fi
         if printf '%s\n' "$body" | awk 'NF{ if($0 !~ /^    /) exit 1 }'; then
           body="$(printf '%s\n' "$body" | sed 's/^    //')"
         fi
