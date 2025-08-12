@@ -41,5 +41,6 @@ jobs:
       run: |
         kubebuilder alpha update \
           --force \
+          --preserve-path .github/workflows \
           --open-issue
 
