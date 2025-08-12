@@ -41,6 +41,5 @@ jobs:
       run: |
         kubebuilder alpha update \
           --force \
-          --squash \
           --open-issue
 
