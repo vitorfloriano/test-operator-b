@@ -43,5 +43,6 @@ jobs:
           --force \
           --squash \
           --preserve-path .github/workflows \
+          --open-pr \
           --open-issue
 
