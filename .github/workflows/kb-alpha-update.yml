@@ -28,6 +28,11 @@ jobs:
       with:
         go-version: stable
 
+    - name: Configure Git
+      run: |
+        git config --local user.name "github-actions[bot]"
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+
     - name: Install Kubebuilder
       run: |
         git clone --depth 1 --branch open-pr-issue-flags \
