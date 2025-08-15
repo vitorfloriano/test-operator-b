@@ -47,6 +47,5 @@ jobs:
         kubebuilder alpha update \
           --force \
           --squash \
-          --preserve-path .github/workflows \
           --open-gh-issue
 
