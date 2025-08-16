@@ -35,7 +35,7 @@ jobs:
 
     - name: Install Kubebuilder
       run: |
-        git clone --depth 1 --branch fix-output-branch \
+        git clone --depth 1 --branch no-squash \
           https://github.com/vitorfloriano/kubebuilder.git /tmp/kubebuilder
         cd /tmp/kubebuilder
         make build
