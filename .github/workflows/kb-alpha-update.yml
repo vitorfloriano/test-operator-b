@@ -47,6 +47,7 @@ jobs:
         kubebuilder alpha update \
           --force \
           --preserve-path .github/workflows 
+          --no-squash
 
     - name: Push updated branch
       run: |
