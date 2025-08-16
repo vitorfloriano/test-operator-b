@@ -35,7 +35,7 @@ jobs:
 
     - name: Install Kubebuilder
       run: |
-        git clone --depth 1 --branch pr-5013 \
+        git clone --depth 1 --branch master \
           https://github.com/vitorfloriano/kubebuilder.git /tmp/kubebuilder
         cd /tmp/kubebuilder
         make build
@@ -48,5 +48,19 @@ jobs:
           --force \
           --squash \
           --preserve-path .github/workflows \
-          --open-gh-issue
+
+    - name: Push updated branch
+      run: |
+        CURRENT_BRANCH=$(git branch --show-current)
+        git add .
+        git commit -m "kubebuilder alpha update" || echo "No changes to commit"
+        git push -u origin $CURRENT_BRANCH
+        echo "BRANCH_NAME=$CURRENT_BRANCH" >> $GITHUB_ENV
+
+    - name: Create issue with PR URL
+      run: |
+        PR_URL="https://github.com/${{ github.repository }}/compare/main...${{ env.BRANCH_NAME }}"
+        gh issue create \
+          --title "Kubebuilder Alpha Update Available" \
+          --body "A kubebuilder alpha update has been performed. Please review the changes and create a pull request: $PR_URL"
 
