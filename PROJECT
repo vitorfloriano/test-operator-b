@@ -6,7 +6,7 @@ cliVersion: 4.6.0
 domain: my.domain
 layout:
 - go.kubebuilder.io/v4
-projectName: test-operator
+projectName: test-operator-b
 repo: github/camilamacedo86/test-operator
 resources:
 - api:

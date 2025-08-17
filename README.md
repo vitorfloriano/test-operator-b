@@ -1,4 +1,4 @@
-# test-operator
+# test-operator-b
 // TODO(user): Add simple overview of use/purpose
 
 ## Description
@@ -7,7 +7,7 @@
 ## Getting Started
 
 ### Prerequisites
-- go version v1.23.0+
+- go version v1.24.0+
 - docker version 17.03+.
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
@@ -16,7 +16,7 @@
 **Build and push your image to the location specified by `IMG`:**
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/test-operator:tag
+make docker-build docker-push IMG=<some-registry>/test-operator-b:tag
 ```
 
 **NOTE:** This image ought to be published in the personal registry you specified.
@@ -32,7 +32,7 @@ make install
 **Deploy the Manager to the cluster with the image specified by `IMG`:**
 
 ```sh
-make deploy IMG=<some-registry>/test-operator:tag
+make deploy IMG=<some-registry>/test-operator-b:tag
 ```
 
 > **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
@@ -75,7 +75,7 @@ Following the options to release and provide this solution to the users.
 1. Build the installer for the image built and published in the registry:
 
 ```sh
-make build-installer IMG=<some-registry>/test-operator:tag
+make build-installer IMG=<some-registry>/test-operator-b:tag
 ```
 
 **NOTE:** The makefile target mentioned above generates an 'install.yaml'
@@ -89,7 +89,7 @@ Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
 the project, i.e.:
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/test-operator/<tag or branch>/dist/install.yaml
+kubectl apply -f https://raw.githubusercontent.com/<org>/test-operator-b/<tag or branch>/dist/install.yaml
 ```
 
 ### By providing a Helm Chart
